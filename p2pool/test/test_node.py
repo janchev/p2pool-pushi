@@ -10,10 +10,10 @@ from twisted.trial import unittest
 from twisted.web import client, resource, server
 
 from p2pool import data, node, work
-from p2pool.sucr import data as sucr_data, networks, worker_interface
+from p2pool.pushi import data as pushi_data, networks, worker_interface
 from p2pool.util import deferral, jsonrpc, math, variable
 
-class sucrd(object): # can be used as p2p factory, p2p protocol, or rpc jsonrpc proxy
+class pushid(object): # can be used as p2p factory, p2p protocol, or rpc jsonrpc proxy
     def __init__(self):
         self.blocks = [0x00000000000132b9afeca5e9a2fdf4477338df6dcff1342300240bc70397c4bb]
         self.headers = {0x132b9afeca5e9a2fdf4477338df6dcff1342300240bc70397c4bb: {
@@ -22,7 +22,7 @@ class sucrd(object): # can be used as p2p factory, p2p protocol, or rpc jsonrpc 
             'merkle_root': 0x43dda83285fae26de9a97331f617392261c77495debe97b7e18b1faf38d1ef8,
             'version': 3,
             'previous_block': 1048610514577342396345362905164852351970507722694242579238530L,
-            'bits': sucr_data.FloatingInteger(bits=0x1b0d642e, target=0x44b9f20000000000000000000000000000000000000000000000L),
+            'bits': pushi_data.FloatingInteger(bits=0x1b0d642e, target=0x44b9f20000000000000000000000000000000000000000000000L),
         }}
         
         self.conn = variable.Variable(self)
@@ -64,14 +64,14 @@ class sucrd(object): # can be used as p2p factory, p2p protocol, or rpc jsonrpc 
             pass
         elif param['mode'] == 'submit':
             result = param['data']
-            block = sucr_data.block_type.unpack(result.decode('hex'))
+            block = pushi_data.block_type.unpack(result.decode('hex'))
             if sum(tx_out['value'] for tx_out in block['txs'][0]['tx_outs']) != sum(tx['tx_outs'][0]['value'] for tx in block['txs'][1:]) + 5000000000:
                 print 'invalid fee'
             if block['header']['previous_block'] != self.blocks[-1]:
                 return False
-            if sucr_data.hash256(result.decode('hex')) > block['header']['bits'].target:
+            if pushi_data.hash256(result.decode('hex')) > block['header']['bits'].target:
                 return False
-            header_hash = sucr_data.hash256(sucr_data.block_header_type.pack(block['header']))
+            header_hash = pushi_data.hash256(pushi_data.block_header_type.pack(block['header']))
             self.blocks.append(header_hash)
             self.headers[header_hash] = block['header']
             reactor.callLater(0, self.new_block.happened)
@@ -83,7 +83,7 @@ class sucrd(object): # can be used as p2p factory, p2p protocol, or rpc jsonrpc 
         for i in xrange(100):
             fee = i
             txs.append(dict(
-                data=sucr_data.tx_type.pack(dict(version=1, tx_ins=[], tx_outs=[dict(value=fee, script='hello!'*100)], lock_time=0)).encode('hex'),
+                data=pushi_data.tx_type.pack(dict(version=1, tx_ins=[], tx_outs=[dict(value=fee, script='hello!'*100)], lock_time=0)).encode('hex'),
                 fee=fee,
             ))
         return {
@@ -125,7 +125,7 @@ class mm_provider(object):
 
 mynet = math.Object(
     NAME='mynet',
-    PARENT=networks.nets['sucr'],
+    PARENT=networks.nets['pushi'],
     SHARE_PERIOD=5, # seconds
     CHAIN_LENGTH=20*60//3, # shares
     REAL_CHAIN_LENGTH=20*60//3, # shares
@@ -146,10 +146,10 @@ mynet = math.Object(
 class MiniNode(object):
     @classmethod
     @defer.inlineCallbacks
-    def start(cls, net, factory, sucrd, peer_ports, merged_urls):
+    def start(cls, net, factory, pushid, peer_ports, merged_urls):
         self = cls()
         
-        self.n = node.Node(factory, sucrd, [], [], net)
+        self.n = node.Node(factory, pushid, [], [], net)
         yield self.n.start()
         
         self.n.p2p_node = node.P2PNode(self.n, port=0, max_incoming_conns=1000000, addr_store={}, connect_addrs=[('127.0.0.1', peer_port) for peer_port in peer_ports])
@@ -173,7 +173,7 @@ class MiniNode(object):
 class Test(unittest.TestCase):
     @defer.inlineCallbacks
     def test_node(self):
-        bitd = sucrd()
+        bitd = pushid()
         
         mm_root = resource.Resource()
         mm_root.putChild('', jsonrpc.HTTPServer(mm_provider))
@@ -221,7 +221,7 @@ class Test(unittest.TestCase):
         N = 3
         SHARES = 600
         
-        bitd = sucrd()
+        bitd = pushid()
         
         nodes = []
         for i in xrange(N):

@@ -10,7 +10,7 @@ from twisted.python import failure, log
 
 import p2pool
 from p2pool import data as p2pool_data
-from p2pool.sucr import data as sucr_data
+from p2pool.pushi import data as pushi_data
 from p2pool.util import deferral, p2protocol, pack, variable
 
 class PeerMisbehavingError(Exception):
@@ -134,8 +134,8 @@ class Protocol(p2protocol.Protocol):
     message_version = pack.ComposedType([
         ('version', pack.IntType(32)),
         ('services', pack.IntType(64)),
-        ('addr_to', sucr_data.address_type),
-        ('addr_from', sucr_data.address_type),
+        ('addr_to', pushi_data.address_type),
+        ('addr_from', pushi_data.address_type),
         ('nonce', pack.IntType(64)),
         ('sub_version', pack.VarStrType()),
         ('mode', pack.IntType(32)), # always 1 for legacy compatibility
@@ -226,15 +226,15 @@ class Protocol(p2protocol.Protocol):
             removed = set(before) - set(after)
             if removed:
                 self.send_forget_tx(tx_hashes=list(removed))
-                self.remote_remembered_txs_size -= sum(100 + sucr_data.tx_type.packed_size(before[x]) for x in removed)
+                self.remote_remembered_txs_size -= sum(100 + pushi_data.tx_type.packed_size(before[x]) for x in removed)
             if added:
-                self.remote_remembered_txs_size += sum(100 + sucr_data.tx_type.packed_size(after[x]) for x in added)
+                self.remote_remembered_txs_size += sum(100 + pushi_data.tx_type.packed_size(after[x]) for x in added)
                 assert self.remote_remembered_txs_size <= self.max_remembered_txs_size
                 fragment(self.send_remember_tx, tx_hashes=[x for x in added if x in self.remote_tx_hashes], txs=[after[x] for x in added if x not in self.remote_tx_hashes])
         watch_id2 = self.node.mining_txs_var.transitioned.watch(update_remote_view_of_my_mining_txs)
         self.connection_lost_event.watch(lambda: self.node.mining_txs_var.transitioned.unwatch(watch_id2))
         
-        self.remote_remembered_txs_size += sum(100 + sucr_data.tx_type.packed_size(x) for x in self.node.mining_txs_var.value.values())
+        self.remote_remembered_txs_size += sum(100 + pushi_data.tx_type.packed_size(x) for x in self.node.mining_txs_var.value.values())
         assert self.remote_remembered_txs_size <= self.max_remembered_txs_size
         fragment(self.send_remember_tx, tx_hashes=[], txs=self.node.mining_txs_var.value.values())
     
@@ -268,7 +268,7 @@ class Protocol(p2protocol.Protocol):
     message_addrs = pack.ComposedType([
         ('addrs', pack.ListType(pack.ComposedType([
             ('timestamp', pack.IntType(64)),
-            ('address', sucr_data.address_type),
+            ('address', pushi_data.address_type),
         ]))),
     ])
     def handle_addrs(self, addrs):
@@ -345,7 +345,7 @@ class Protocol(p2protocol.Protocol):
         
         hashes_to_send = [x for x in tx_hashes if x not in self.node.mining_txs_var.value and x in known_txs]
         
-        new_remote_remembered_txs_size = self.remote_remembered_txs_size + sum(100 + sucr_data.tx_type.packed_size(known_txs[x]) for x in hashes_to_send)
+        new_remote_remembered_txs_size = self.remote_remembered_txs_size + sum(100 + pushi_data.tx_type.packed_size(known_txs[x]) for x in hashes_to_send)
         if new_remote_remembered_txs_size > self.max_remembered_txs_size:
             raise ValueError('shares have too many txs')
         self.remote_remembered_txs_size = new_remote_remembered_txs_size
@@ -356,7 +356,7 @@ class Protocol(p2protocol.Protocol):
         
         self.send_forget_tx(tx_hashes=hashes_to_send)
         
-        self.remote_remembered_txs_size -= sum(100 + sucr_data.tx_type.packed_size(known_txs[x]) for x in hashes_to_send)
+        self.remote_remembered_txs_size -= sum(100 + pushi_data.tx_type.packed_size(known_txs[x]) for x in hashes_to_send)
     
     
     message_sharereq = pack.ComposedType([
@@ -387,7 +387,7 @@ class Protocol(p2protocol.Protocol):
     
     
     message_bestblock = pack.ComposedType([
-        ('header', sucr_data.block_header_type),
+        ('header', pushi_data.block_header_type),
     ])
     def handle_bestblock(self, header):
         self.node.handle_bestblock(header, self)
@@ -411,7 +411,7 @@ class Protocol(p2protocol.Protocol):
     
     message_remember_tx = pack.ComposedType([
         ('tx_hashes', pack.ListType(pack.IntType(256))),
-        ('txs', pack.ListType(sucr_data.tx_type)),
+        ('txs', pack.ListType(pushi_data.tx_type)),
     ])
     def handle_remember_tx(self, tx_hashes, txs):
         for tx_hash in tx_hashes:
@@ -434,11 +434,11 @@ class Protocol(p2protocol.Protocol):
                     return
             
             self.remembered_txs[tx_hash] = tx
-            self.remembered_txs_size += 100 + sucr_data.tx_type.packed_size(tx)
+            self.remembered_txs_size += 100 + pushi_data.tx_type.packed_size(tx)
         added_known_txs = {}
         warned = False
         for tx in txs:
-            tx_hash = sucr_data.hash256(sucr_data.tx_type.pack(tx))
+            tx_hash = pushi_data.hash256(pushi_data.tx_type.pack(tx))
             if tx_hash in self.remembered_txs:
                 print >>sys.stderr, 'Peer referenced transaction twice, disconnecting'
                 self.disconnect()
@@ -449,7 +449,7 @@ class Protocol(p2protocol.Protocol):
                 warned = True
             
             self.remembered_txs[tx_hash] = tx
-            self.remembered_txs_size += 100 + sucr_data.tx_type.packed_size(tx)
+            self.remembered_txs_size += 100 + pushi_data.tx_type.packed_size(tx)
             added_known_txs[tx_hash] = tx
         # self.node.known_txs_var.add(added_known_txs)
         if self.remembered_txs_size >= self.max_remembered_txs_size:
@@ -459,7 +459,7 @@ class Protocol(p2protocol.Protocol):
     ])
     def handle_forget_tx(self, tx_hashes):
         for tx_hash in tx_hashes:
-            self.remembered_txs_size -= 100 + sucr_data.tx_type.packed_size(self.remembered_txs[tx_hash])
+            self.remembered_txs_size -= 100 + pushi_data.tx_type.packed_size(self.remembered_txs[tx_hash])
             assert self.remembered_txs_size >= 0
             del self.remembered_txs[tx_hash]
     

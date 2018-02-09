@@ -2,7 +2,7 @@ Requirements:
 -------------------------
 Generic:
 
-* Sucre Core >=0.12.2.1
+* Pushi Core >=0.12.2.3
 * Python >=2.7
 * Twisted >=13.0.0
 * Zope.interface >=3.8.0
@@ -26,7 +26,7 @@ dash_hash:
 
 Running P2Pool:
 -------------------------
-To use P2Pool, you must be running your own local sucrd. For standard
+To use P2Pool, you must be running your own local pushid. For standard
 configurations, using P2Pool should be as simple as:
 
     python run_p2pool.py

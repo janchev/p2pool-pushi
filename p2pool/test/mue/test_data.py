@@ -1,6 +1,6 @@
 import unittest
 
-from p2pool.sucr import data, networks
+from p2pool.pushi import data, networks
 from p2pool.util import pack
 
 
@@ -15,8 +15,8 @@ class Test(unittest.TestCase):
             nonce=3658685446,
         ))) == 0x000000000000003aaaf7638f9f9c0d0c60e8b0eb817dcdb55fd2b1964efc5175
     
-    def test_header_hash_sucr(self):
-        assert networks.nets['sucr'].POW_FUNC(data.block_header_type.pack(dict(
+    def test_header_hash_pushi(self):
+        assert networks.nets['pushi'].POW_FUNC(data.block_header_type.pack(dict(
             version=3,
             previous_block=0x0000000000058f1afc49ee27334f3198e72f5390f1dac1d549823ec70a6902aa,
             merkle_root=0x043dda83285fae26de9a97331f617392261c77495debe97b7e18b1faf38d1ef8,
@@ -41,7 +41,7 @@ class Test(unittest.TestCase):
         ))) == 0xb53802b2333e828d6532059f46ecf6b313a42d79f97925e457fbbfda45367e5c
     
     def test_address_to_pubkey_hash(self):
-        assert data.address_to_pubkey_hash('7gnwGHt17heGpG9Crfeh4KGpYNFugPhJdh', networks.nets['sucr']) == pack.IntType(160).unpack('9dc8b19033a16913b6e45437f76d0ab649e9e516'.decode('hex'))
+        assert data.address_to_pubkey_hash('7gnwGHt17heGpG9Crfeh4KGpYNFugPhJdh', networks.nets['pushi']) == pack.IntType(160).unpack('9dc8b19033a16913b6e45437f76d0ab649e9e516'.decode('hex'))
     
     def test_merkle_hash(self):
         assert data.merkle_hash([

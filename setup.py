@@ -12,11 +12,11 @@ version = str('1.4+')+str(__import__('p2pool').__version__)
 im64 = '64' in platform.architecture()[0]
 
 extra_includes = []
-import p2pool.sucr
+import p2pool.pushi
 import p2pool.networks
 extra_includes.extend('p2pool.networks.' + x for x in p2pool.networks.nets)
-import p2pool.sucr.networks
-extra_includes.extend('p2pool.sucr.networks.' + x for x in p2pool.sucr.networks.nets)
+import p2pool.pushi.networks
+extra_includes.extend('p2pool.pushi.networks.' + x for x in p2pool.pushi.networks.nets)
 
 if os.path.exists('INITBAK'):
     os.remove('INITBAK')
@@ -29,12 +29,12 @@ try:
     if im64:
         bundle = bundle + 2
     sys.argv[1:] = ['py2exe']
-    setup(name='p2pool-sucr',
+    setup(name='p2pool-pushi',
         version=version,
-        description='Peer-to-peer Sucre mining pool',
+        description='Peer-to-peer Pushi mining pool',
         author='Forrest Voight',
         author_email='forrest@forre.st',
-        url='https://github.com/ilsawa/p2pool-sucr/',
+        url='https://github.com/ilsawa/p2pool-pushi/',
         data_files=[
             ('', ['README.md']),
 #            ("Microsoft.VC90.MFC", mfcfiles),
@@ -55,7 +55,7 @@ try:
                       'dash_hash',
                       'zope.interface',
                       'win32api',
-                      'p2pool.sucr',
+                      'p2pool.pushi',
                      ] + extra_includes,
         )),
         zipfile=None,
@@ -68,7 +68,7 @@ win = '32'
 if im64:
     win = '64'
 
-dir_name = 'p2pool_sucr_win' + win + '_' + version
+dir_name = 'p2pool_pushi_win' + win + '_' + version
 
 if os.path.exists(dir_name):
     shutil.rmtree(dir_name)

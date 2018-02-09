@@ -1,6 +1,6 @@
-from p2pool.sucr import networks
+from p2pool.pushi import networks
 
-PARENT = networks.nets['sucr']
+PARENT = networks.nets['pushi']
 SHARE_PERIOD = 25
 CHAIN_LENGTH = 24*60*60//25
 REAL_CHAIN_LENGTH = 24*60*60//25
@@ -15,5 +15,5 @@ MAX_TARGET = 2**256//2**20 - 1
 PERSIST = True
 WORKER_PORT = 9339
 BOOTSTRAP_ADDRS = 'crypto.office-on-the.net siberia.mine.nu'.split(' ')
-ANNOUNCE_CHANNEL = '#p2pool-sucr'
+ANNOUNCE_CHANNEL = '#p2pool-pushi'
 VERSION_CHECK = lambda v: v >= 120201

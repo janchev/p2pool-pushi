@@ -19,8 +19,8 @@ from twisted.web import server
 from twisted.python import log
 from nattraverso import portmapper, ipdiscover
 
-import sucr.p2p as sucr_p2p, sucr.data as sucr_data
-from sucr import stratum, worker_interface, helper
+import pushi.p2p as pushi_p2p, pushi.data as pushi_data
+from pushi import stratum, worker_interface, helper
 from util import fixargparse, jsonrpc, variable, deferral, math, logging, switchprotocol
 from . import networks, web, work
 import p2pool, p2pool.data as p2pool_data, p2pool.node as p2pool_node
@@ -65,7 +65,7 @@ class keypool():
     def paytotal(self):
         self.payouttotal = 0.0
         for i in xrange(len(pubkeys.keys)):
-            self.payouttotal += node.get_current_txouts().get(sucr_data.pubkey_hash_to_script2(pubkeys.keys[i]), 0)*1e-8
+            self.payouttotal += node.get_current_txouts().get(pushi_data.pubkey_hash_to_script2(pubkeys.keys[i]), 0)*1e-8
         return self.payouttotal
 
     def getpaytotal(self):
@@ -80,12 +80,12 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
         
         @defer.inlineCallbacks
         def connect_p2p():
-            # connect to sucrd over sucr-p2p
-            print '''Testing sucrd P2P connection to '%s:%s'...''' % (args.sucrd_address, args.sucrd_p2p_port)
-            factory = sucr_p2p.ClientFactory(net.PARENT)
-            reactor.connectTCP(args.sucrd_address, args.sucrd_p2p_port, factory)
+            # connect to pushid over pushi-p2p
+            print '''Testing pushid P2P connection to '%s:%s'...''' % (args.pushid_address, args.pushid_p2p_port)
+            factory = pushi_p2p.ClientFactory(net.PARENT)
+            reactor.connectTCP(args.pushid_address, args.pushid_p2p_port, factory)
             def long():
-                print '''    ...taking a while. Common reasons for this include all of sucrd's connection slots being used...'''
+                print '''    ...taking a while. Common reasons for this include all of pushid's connection slots being used...'''
             long_dc = reactor.callLater(5, long)
             yield factory.getProtocol() # waits until handshake is successful
             if not long_dc.called: long_dc.cancel()
@@ -93,20 +93,20 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
             print
             defer.returnValue(factory)
         
-        if args.testnet: # establish p2p connection first if testnet so sucrd can work without connections
+        if args.testnet: # establish p2p connection first if testnet so pushid can work without connections
             factory = yield connect_p2p()
         
-        # connect to sucrd over JSON-RPC and do initial getmemorypool
-        url = '%s://%s:%i/' % ('https' if args.sucrd_rpc_ssl else 'http', args.sucrd_address, args.sucrd_rpc_port)
-        print '''Testing sucrd RPC connection to '%s' with username '%s'...''' % (url, args.sucrd_rpc_username)
-        sucrd = jsonrpc.HTTPProxy(url, dict(Authorization='Basic ' + base64.b64encode(args.sucrd_rpc_username + ':' + args.sucrd_rpc_password)), timeout=30)
-        yield helper.check(sucrd, net)
-        temp_work = yield helper.getwork(sucrd, net)
+        # connect to pushid over JSON-RPC and do initial getmemorypool
+        url = '%s://%s:%i/' % ('https' if args.pushid_rpc_ssl else 'http', args.pushid_address, args.pushid_rpc_port)
+        print '''Testing pushid RPC connection to '%s' with username '%s'...''' % (url, args.pushid_rpc_username)
+        pushid = jsonrpc.HTTPProxy(url, dict(Authorization='Basic ' + base64.b64encode(args.pushid_rpc_username + ':' + args.pushid_rpc_password)), timeout=30)
+        yield helper.check(pushid, net)
+        temp_work = yield helper.getwork(pushid, net)
         
-        sucrd_getinfo_var = variable.Variable(None)
+        pushid_getinfo_var = variable.Variable(None)
         @defer.inlineCallbacks
         def poll_warnings():
-            sucrd_getinfo_var.set((yield deferral.retry('Error while calling getinfo:')(sucrd.rpc_getinfo)()))
+            pushid_getinfo_var.set((yield deferral.retry('Error while calling getinfo:')(pushid.rpc_getinfo)()))
         yield poll_warnings()
         deferral.RobustLoopingCall(poll_warnings).start(20*60)
         
@@ -131,25 +131,25 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
                 address = None
             
             if address is not None:
-                res = yield deferral.retry('Error validating cached address:', 5)(lambda: sucrd.rpc_validateaddress(address))()
+                res = yield deferral.retry('Error validating cached address:', 5)(lambda: pushid.rpc_validateaddress(address))()
                 if not res['isvalid'] or not res['ismine']:
-                    print '    Cached address is either invalid or not controlled by local sucrd!'
+                    print '    Cached address is either invalid or not controlled by local pushid!'
                     address = None
             
             if address is None:
-                print '    Getting payout address from sucrd...'
-                address = yield deferral.retry('Error getting payout address from sucrd:', 5)(lambda: sucrd.rpc_getaccountaddress('p2pool'))()
+                print '    Getting payout address from pushid...'
+                address = yield deferral.retry('Error getting payout address from pushid:', 5)(lambda: pushid.rpc_getaccountaddress('p2pool'))()
             
             with open(address_path, 'wb') as f:
                 f.write(address)
             
-            my_pubkey_hash = sucr_data.address_to_pubkey_hash(address, net.PARENT)
-            print '    ...success! Payout address:', sucr_data.pubkey_hash_to_address(my_pubkey_hash, net.PARENT)
+            my_pubkey_hash = pushi_data.address_to_pubkey_hash(address, net.PARENT)
+            print '    ...success! Payout address:', pushi_data.pubkey_hash_to_address(my_pubkey_hash, net.PARENT)
             print
             pubkeys.addkey(my_pubkey_hash)
         elif args.address != 'dynamic':
             my_pubkey_hash = args.pubkey_hash
-            print '    ...success! Payout address:', sucr_data.pubkey_hash_to_address(my_pubkey_hash, net.PARENT)
+            print '    ...success! Payout address:', pushi_data.pubkey_hash_to_address(my_pubkey_hash, net.PARENT)
             print
             pubkeys.addkey(my_pubkey_hash)
         else:
@@ -197,7 +197,7 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
                 def paytotal(self):
                     self.payouttotal = 0.0
                     for i in xrange(len(pubkeys.keys)):
-                        self.payouttotal += node.get_current_txouts().get(sucr_data.pubkey_hash_to_script2(pubkeys.keys[i]), 0)*1e-8
+                        self.payouttotal += node.get_current_txouts().get(pushi_data.pubkey_hash_to_script2(pubkeys.keys[i]), 0)*1e-8
                     return self.payouttotal
 
                 def getpaytotal(self):
@@ -205,8 +205,8 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
 
             pubkeys = keypool()
             for i in xrange(args.numaddresses):
-                address = yield deferral.retry('Error getting a dynamic address from sucrd:', 5)(lambda: sucrd.rpc_getnewaddress('p2pool'))()
-                new_pubkey = sucr_data.address_to_pubkey_hash(address, net.PARENT)
+                address = yield deferral.retry('Error getting a dynamic address from pushid:', 5)(lambda: pushid.rpc_getnewaddress('p2pool'))()
+                new_pubkey = pushi_data.address_to_pubkey_hash(address, net.PARENT)
                 pubkeys.addkey(new_pubkey)
 
             pubkeys.updatestamp(time.time())
@@ -214,7 +214,7 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
             my_pubkey_hash = pubkeys.keys[0]
 
             for i in xrange(len(pubkeys.keys)):
-                print '    ...payout %d: %s' % (i, sucr_data.pubkey_hash_to_address(pubkeys.keys[i], net.PARENT),)
+                print '    ...payout %d: %s' % (i, pushi_data.pubkey_hash_to_address(pubkeys.keys[i], net.PARENT),)
         
         print "Loading shares..."
         shares = {}
@@ -231,7 +231,7 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
         
         print 'Initializing work...'
         
-        node = p2pool_node.Node(factory, sucrd, shares.values(), known_verified, net)
+        node = p2pool_node.Node(factory, pushid, shares.values(), known_verified, net)
         yield node.start()
         
         for share_hash in shares:
@@ -326,8 +326,8 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
         
         print 'Listening for workers on %r port %i...' % (worker_endpoint[0], worker_endpoint[1])
         
-        wb = work.WorkerBridge(node, my_pubkey_hash, args.donation_percentage, merged_urls, args.worker_fee, args, pubkeys, sucrd)
-        web_root = web.get_web_root(wb, datadir_path, sucrd_getinfo_var, static_dir=args.web_static)
+        wb = work.WorkerBridge(node, my_pubkey_hash, args.donation_percentage, merged_urls, args.worker_fee, args, pubkeys, pushid)
+        web_root = web.get_web_root(wb, datadir_path, pushid_getinfo_var, static_dir=args.web_static)
         caching_wb = worker_interface.CachingWorkerBridge(wb)
         worker_interface.WorkerInterface(caching_wb).attach_to(web_root, get_handler=lambda request: request.redirect('/static/'))
         web_serverfactory = server.Site(web_root)
@@ -383,7 +383,7 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
                             return
                         if share.pow_hash <= share.header['bits'].target and abs(share.timestamp - time.time()) < 10*60:
                             yield deferral.sleep(random.expovariate(1/60))
-                            message = '\x02%s BLOCK FOUND by %s! %s%064x' % (net.NAME.upper(), sucr_data.script2_to_address(share.new_script, net.PARENT), net.PARENT.BLOCK_EXPLORER_URL_PREFIX, share.header_hash)
+                            message = '\x02%s BLOCK FOUND by %s! %s%064x' % (net.NAME.upper(), pushi_data.script2_to_address(share.new_script, net.PARENT), net.PARENT.BLOCK_EXPLORER_URL_PREFIX, share.header_hash)
                             if all('%x' % (share.header_hash,) not in old_message for old_message in self.recent_messages):
                                 self.say(self.channel, message)
                                 self._remember_message(message)
@@ -425,7 +425,7 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
                     
                     datums, dt = wb.local_rate_monitor.get_datums_in_last()
                     my_att_s = sum(datum['work']/dt for datum in datums)
-                    my_shares_per_s = sum(datum['work']/dt/sucr_data.target_to_average_attempts(datum['share_target']) for datum in datums)
+                    my_shares_per_s = sum(datum['work']/dt/pushi_data.target_to_average_attempts(datum['share_target']) for datum in datums)
                     this_str += '\n Local: %sH/s in last %s Local dead on arrival: %s Expected time to share: %s' % (
                         math.format(int(my_att_s)),
                         math.format_dt(dt),
@@ -441,7 +441,7 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
                         paystr = ''
                         paytot = 0.0
                         for i in xrange(len(pubkeys.keys)):
-                            curtot = node.get_current_txouts().get(sucr_data.pubkey_hash_to_script2(pubkeys.keys[i]), 0)
+                            curtot = node.get_current_txouts().get(pushi_data.pubkey_hash_to_script2(pubkeys.keys[i]), 0)
                             paytot += curtot*1e-8
                             paystr += "(%.4f)" % (curtot*1e-8,)
                         paystr += "=%.4f" % (paytot,)
@@ -454,10 +454,10 @@ def main(args, net, datadir_path, merged_urls, worker_endpoint):
                         this_str += '\n Pool: %sH/s Stale rate: %.1f%% Expected time to block: %s' % (
                             math.format(int(real_att_s)),
                             100*stale_prop,
-                            math.format_dt(2**256 / node.sucrd_work.value['bits'].target / real_att_s),
+                            math.format_dt(2**256 / node.pushid_work.value['bits'].target / real_att_s),
                         )
                         
-                        for warning in p2pool_data.get_warnings(node.tracker, node.best_share_var.value, net, sucrd_getinfo_var.value, node.sucrd_work.value):
+                        for warning in p2pool_data.get_warnings(node.tracker, node.best_share_var.value, net, pushid_getinfo_var.value, node.pushid_work.value):
                             print >>sys.stderr, '#'*40
                             print >>sys.stderr, '>>> Warning: ' + warning
                             print >>sys.stderr, '#'*40
@@ -487,8 +487,8 @@ def run():
     parser = fixargparse.FixedArgumentParser(description='p2pool (version %s)' % (p2pool.__version__,), fromfile_prefix_chars='@')
     parser.add_argument('--version', action='version', version=p2pool.__version__)
     parser.add_argument('--net',
-        help='use specified network (default: sucr)',
-        action='store', choices=sorted(realnets), default='sucr', dest='net_name')
+        help='use specified network (default: pushi)',
+        action='store', choices=sorted(realnets), default='pushi', dest='net_name')
     parser.add_argument('--testnet',
         help='''use the network's testnet''',
         action='store_const', const=True, default=False, dest='testnet')
@@ -496,10 +496,10 @@ def run():
         help='enable debugging mode',
         action='store_const', const=True, default=False, dest='debug')
     parser.add_argument('-a', '--address',
-        help='generate payouts to this address (default: <address requested from sucrd>), or (dynamic)',
+        help='generate payouts to this address (default: <address requested from pushid>), or (dynamic)',
         type=str, action='store', default=None, dest='address')
     parser.add_argument('-i', '--numaddresses',
-        help='number of sucr auto-generated addresses to maintain for getwork dynamic address allocation',
+        help='number of pushi auto-generated addresses to maintain for getwork dynamic address allocation',
         type=int, action='store', default=2, dest='numaddresses')
     parser.add_argument('-t', '--timeaddresses',
         help='seconds between acquisition of new address and removal of single old (default: 2 days or 172800s)',
@@ -557,29 +557,29 @@ def run():
         help='listen on PORT on interface with ADDR for RPC connections from miners (default: all interfaces, %s)' % ', '.join('%s:%i' % (name, net.WORKER_PORT) for name, net in sorted(realnets.items())),
         type=str, action='store', default=None, dest='worker_endpoint')
     worker_group.add_argument('-f', '--fee', metavar='FEE_PERCENTAGE',
-        help='''charge workers mining to their own sucr address (by setting their miner's username to a sucr address) this percentage fee to mine on your p2pool instance. Amount displayed at http://127.0.0.1:WORKER_PORT/fee (default: 0)''',
+        help='''charge workers mining to their own pushi address (by setting their miner's username to a pushi address) this percentage fee to mine on your p2pool instance. Amount displayed at http://127.0.0.1:WORKER_PORT/fee (default: 0)''',
         type=float, action='store', default=0, dest='worker_fee')
     
-    sucrd_group = parser.add_argument_group('sucrd interface')
-    sucrd_group.add_argument('--sucrd-config-path', metavar='SUCRD_CONFIG_PATH',
-        help='custom configuration file path (when sucrd -conf option used)',
-        type=str, action='store', default=None, dest='sucrd_config_path')
-    sucrd_group.add_argument('--sucrd-address', metavar='SUCRD_ADDRESS',
+    pushid_group = parser.add_argument_group('pushid interface')
+    pushid_group.add_argument('--pushid-config-path', metavar='PUSHID_CONFIG_PATH',
+        help='custom configuration file path (when pushid -conf option used)',
+        type=str, action='store', default=None, dest='pushid_config_path')
+    pushid_group.add_argument('--pushid-address', metavar='PUSHID_ADDRESS',
         help='connect to this address (default: 127.0.0.1)',
-        type=str, action='store', default='127.0.0.1', dest='sucrd_address')
-    sucrd_group.add_argument('--sucrd-rpc-port', metavar='SUCRD_RPC_PORT',
-        help='''connect to JSON-RPC interface at this port (default: %s <read from sucr.conf if password not provided>)''' % ', '.join('%s:%i' % (name, net.PARENT.RPC_PORT) for name, net in sorted(realnets.items())),
-        type=int, action='store', default=None, dest='sucrd_rpc_port')
-    sucrd_group.add_argument('--sucrd-rpc-ssl',
+        type=str, action='store', default='127.0.0.1', dest='pushid_address')
+    pushid_group.add_argument('--pushid-rpc-port', metavar='PUSHID_RPC_PORT',
+        help='''connect to JSON-RPC interface at this port (default: %s <read from pushi.conf if password not provided>)''' % ', '.join('%s:%i' % (name, net.PARENT.RPC_PORT) for name, net in sorted(realnets.items())),
+        type=int, action='store', default=None, dest='pushid_rpc_port')
+    pushid_group.add_argument('--pushid-rpc-ssl',
         help='connect to JSON-RPC interface using SSL',
-        action='store_true', default=False, dest='sucrd_rpc_ssl')
-    sucrd_group.add_argument('--sucrd-p2p-port', metavar='SUCRD_P2P_PORT',
-        help='''connect to P2P interface at this port (default: %s <read from sucr.conf if password not provided>)''' % ', '.join('%s:%i' % (name, net.PARENT.P2P_PORT) for name, net in sorted(realnets.items())),
-        type=int, action='store', default=None, dest='sucrd_p2p_port')
+        action='store_true', default=False, dest='pushid_rpc_ssl')
+    pushid_group.add_argument('--pushid-p2p-port', metavar='PUSHID_P2P_PORT',
+        help='''connect to P2P interface at this port (default: %s <read from pushi.conf if password not provided>)''' % ', '.join('%s:%i' % (name, net.PARENT.P2P_PORT) for name, net in sorted(realnets.items())),
+        type=int, action='store', default=None, dest='pushid_p2p_port')
     
-    sucrd_group.add_argument(metavar='SUCRD_RPCUSERPASS',
-        help='sucrd RPC interface username, then password, space-separated (only one being provided will cause the username to default to being empty, and none will cause P2Pool to read them from sucr.conf)',
-        type=str, action='store', default=[], nargs='*', dest='sucrd_rpc_userpass')
+    pushid_group.add_argument(metavar='PUSHID_RPCUSERPASS',
+        help='pushid RPC interface username, then password, space-separated (only one being provided will cause the username to default to being empty, and none will cause P2Pool to read them from pushi.conf)',
+        type=str, action='store', default=[], nargs='*', dest='pushid_rpc_userpass')
     
     args = parser.parse_args()
     
@@ -596,20 +596,20 @@ def run():
     if not os.path.exists(datadir_path):
         os.makedirs(datadir_path)
     
-    if len(args.sucrd_rpc_userpass) > 2:
+    if len(args.pushid_rpc_userpass) > 2:
         parser.error('a maximum of two arguments are allowed')
-    args.sucrd_rpc_username, args.sucrd_rpc_password = ([None, None] + args.sucrd_rpc_userpass)[-2:]
+    args.pushid_rpc_username, args.pushid_rpc_password = ([None, None] + args.pushid_rpc_userpass)[-2:]
     
-    if args.sucrd_rpc_password is None:
-        conf_path = args.sucrd_config_path or net.PARENT.CONF_FILE_FUNC()
+    if args.pushid_rpc_password is None:
+        conf_path = args.pushid_config_path or net.PARENT.CONF_FILE_FUNC()
         if not os.path.exists(conf_path):
-            parser.error('''sucr configuration file not found. Manually enter your RPC password.\r\n'''
+            parser.error('''pushi configuration file not found. Manually enter your RPC password.\r\n'''
                 '''If you actually haven't created a configuration file, you should create one at %s with the text:\r\n'''
                 '''\r\n'''
                 '''server=1\r\n'''
                 '''rpcpassword=%x\r\n'''
                 '''\r\n'''
-                '''Keep that password secret! After creating the file, restart sucr.''' % (conf_path, random.randrange(2**128)))
+                '''Keep that password secret! After creating the file, restart pushi.''' % (conf_path, random.randrange(2**128)))
         conf = open(conf_path, 'rb').read()
         contents = {}
         for line in conf.splitlines(True):
@@ -620,26 +620,26 @@ def run():
             k, v = line.split('=', 1)
             contents[k.strip()] = v.strip()
         for conf_name, var_name, var_type in [
-            ('rpcuser', 'sucrd_rpc_username', str),
-            ('rpcpassword', 'sucrd_rpc_password', str),
-            ('rpcport', 'sucrd_rpc_port', int),
-            ('port', 'sucrd_p2p_port', int),
+            ('rpcuser', 'pushid_rpc_username', str),
+            ('rpcpassword', 'pushid_rpc_password', str),
+            ('rpcport', 'pushid_rpc_port', int),
+            ('port', 'pushid_p2p_port', int),
         ]:
             if getattr(args, var_name) is None and conf_name in contents:
                 setattr(args, var_name, var_type(contents[conf_name]))
         if 'rpcssl' in contents and contents['rpcssl'] != '0':
-                args.sucrd_rpc_ssl = True
-        if args.sucrd_rpc_password is None:
-            parser.error('''sucr configuration file didn't contain an rpcpassword= line! Add one!''')
+                args.pushid_rpc_ssl = True
+        if args.pushid_rpc_password is None:
+            parser.error('''pushi configuration file didn't contain an rpcpassword= line! Add one!''')
     
-    if args.sucrd_rpc_username is None:
-        args.sucrd_rpc_username = ''
+    if args.pushid_rpc_username is None:
+        args.pushid_rpc_username = ''
     
-    if args.sucrd_rpc_port is None:
-        args.sucrd_rpc_port = net.PARENT.RPC_PORT
+    if args.pushid_rpc_port is None:
+        args.pushid_rpc_port = net.PARENT.RPC_PORT
     
-    if args.sucrd_p2p_port is None:
-        args.sucrd_p2p_port = net.PARENT.P2P_PORT
+    if args.pushid_p2p_port is None:
+        args.pushid_p2p_port = net.PARENT.P2P_PORT
     
     if args.p2pool_port is None:
         args.p2pool_port = net.P2P_PORT
@@ -657,7 +657,7 @@ def run():
     
     if args.address is not None and args.address != 'dynamic':
         try:
-            args.pubkey_hash = sucr_data.address_to_pubkey_hash(args.address, net.PARENT)
+            args.pubkey_hash = pushi_data.address_to_pubkey_hash(args.address, net.PARENT)
         except Exception as e:
             parser.error('error parsing address: ' + repr(e))
     else:

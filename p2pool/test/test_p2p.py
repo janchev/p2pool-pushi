@@ -4,7 +4,7 @@ from twisted.internet import defer, endpoints, protocol, reactor
 from twisted.trial import unittest
 
 from p2pool import networks, p2p
-from p2pool.sucr import data as sucr_data
+from p2pool.pushi import data as pushi_data
 from p2pool.util import deferral
 
 
@@ -13,7 +13,7 @@ class Test(unittest.TestCase):
     def test_sharereq(self):
         class MyNode(p2p.Node):
             def __init__(self, df):
-                p2p.Node.__init__(self, lambda: None, 28999, networks.nets['sucr'], {}, set([('127.0.0.1', 8999)]), 0, 0, 0, 0)
+                p2p.Node.__init__(self, lambda: None, 28999, networks.nets['pushi'], {}, set([('127.0.0.1', 8999)]), 0, 0, 0, 0)
                 
                 self.df = df
             
@@ -36,7 +36,7 @@ class Test(unittest.TestCase):
     def test_tx_limit(self):
         class MyNode(p2p.Node):
             def __init__(self, df):
-                p2p.Node.__init__(self, lambda: None, 28999, networks.nets['sucr'], {}, set([('127.0.0.1', 8999)]), 0, 0, 0, 0)
+                p2p.Node.__init__(self, lambda: None, 28999, networks.nets['pushi'], {}, set([('127.0.0.1', 8999)]), 0, 0, 0, 0)
                 
                 self.df = df
                 self.sent_time = 0
@@ -58,7 +58,7 @@ class Test(unittest.TestCase):
                         )],
                         lock_time=i,
                     )
-                    new_mining_txs[sucr_data.hash256(sucr_data.tx_type.pack(huge_tx))] = huge_tx
+                    new_mining_txs[pushi_data.hash256(pushi_data.tx_type.pack(huge_tx))] = huge_tx
                 self.mining_txs_var.set(new_mining_txs)
                 
                 self.sent_time = reactor.seconds()
